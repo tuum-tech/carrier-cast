@@ -20,9 +20,13 @@ rpc_server = RPCServerGreenlets(transport, JSONRPCProtocol(), dispatcher)
 
 @dispatcher.public
 def send_command(s):
-	q = posixmq.Queue('/sp-example-server',serializer=RawSerializer)
+	q = posixmq.Queue('/carrier_node_server_queue',serializer=RawSerializer)
 	q.put(s.encode('ascii'))
-	return "command sent"
+	#q_return = posixmq.Queue('/carrier_node_client_queue',serializer=RawSerializer)
+	#print("return %s" % q_return)
+	#output = ""+str(q_return.get().decode('ascii'))
+	#return output
+	return("command sent")
 
 # in the main greenlet, run our rpc_server
 rpc_server.serve_forever()
