@@ -45,6 +45,7 @@ RUN         apt-get update \
 		 	autotools-dev \
 		 	libtool \
 		 	python3-pip \
+		&& apt-get install -y nano\
 		&& pip3 install ipcqueue \
 		&& pip3 install gevent \
 		&& pip3 install werkzeug \
