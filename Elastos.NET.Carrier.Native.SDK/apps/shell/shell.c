@@ -38,7 +38,8 @@
 #include <time.h>
 #include <mqueue.h>
 
-#define SERVER_QUEUE_NAME   "/sp-example-server"
+#define SERVER_QUEUE_NAME   "/carrier_node_server_queue"
+#define CLIENT_QUEUE_NAME   "/carrier_node_client_queue"
 #define QUEUE_PERMISSIONS 0660
 #define MAX_MESSAGES 10
 #define MAX_MSG_SIZE 256
@@ -112,9 +113,12 @@ static int cmd_history_last = 0;
 static int cmd_history_cursor = 0;
 static int cmd_cursor_dir = 1;
 static mqd_t qd_server;
+static mqd_t qd_client;
 static FILE *fp;
-
 static const char *lobbyGroup = "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR";
+static char friends_list_result[MSG_BUFFER_SIZE];
+static void write_queue(char *result);  //prototype
+
 
 WINDOW *output_win_border, *output_win;
 WINDOW *log_win_border, *log_win;
@@ -521,6 +525,7 @@ static void get_address(ElaCarrier *w, int argc, char *argv[])
 
     char addr[ELA_MAX_ADDRESS_LEN+1] = {0};
     ela_get_address(w, addr, sizeof(addr));
+    write_queue(addr);
     output("Address: %s\n", addr);
 }
 
@@ -727,6 +732,7 @@ static const char *connection_name[] = {
     "offline"
 };
 
+
 /* This callback share by list_friends and global
  * friend list callback */
 static bool friends_list_callback(ElaCarrier *w, const ElaFriendInfo *friend_info,
@@ -745,6 +751,9 @@ static bool friends_list_callback(ElaCarrier *w, const ElaFriendInfo *friend_inf
         output("  %-46s %8s %s\n", friend_info->user_info.userid,
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
+
+        //strcpy(friend_list_result, this_friend);
+	
         count++;
     } else {
         /* The list ended */
@@ -762,9 +771,11 @@ static bool friends_list_callback(ElaCarrier *w, const ElaFriendInfo *friend_inf
 static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context)
 {
     static int count;
+    char this_friend[50] = {0};
 
     if (first_friends_item) {
         count = 0;
+	memset(friends_list_result,0,MSG_BUFFER_SIZE);
         output("Friends list:\n");
         output("  %-46s %8s %s\n", "ID", "Connection", "Label");
         output("  %-46s %8s %s\n", "----------------", "----------", "-----");
@@ -774,13 +785,18 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("  %-46s %8s %s\n", friend_info->user_info.userid,
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
-        count++;
+        sprintf(this_friend, "%s\n", friend_info->user_info.userid);
+        strcat(friends_list_result, this_friend);
+
+	count++;
     } else {
         /* The list ended */
         output("  ----------------\n");
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
+	write_queue(friends_list_result);
+
     }
 
     return true;
@@ -849,7 +865,6 @@ static void label_friend(ElaCarrier *w, int argc, char *argv[])
 static void friend_added_callback(ElaCarrier *w, const ElaFriendInfo *info,
                                   void *context)
 {
-   int rc;
     output("New friend added. The friend information:\n");
     display_friend_info(info);
 }
@@ -2216,6 +2231,34 @@ static void write_log(char *cmd)
    return;
 }
 
+static void write_queue(char *result)
+{
+    //  Start posix code
+
+    // output ("Server: Hello, World!\n");
+
+    struct mq_attr attr;
+
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = MAX_MESSAGES;
+    attr.mq_msgsize = MAX_MSG_SIZE;
+    attr.mq_curmsgs = 0;
+
+    if ((qd_client = mq_open (CLIENT_QUEUE_NAME, O_WRONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
+        perror ("Server: mq_open (client)");
+        exit (1);
+    }
+    char in_buffer [MSG_BUFFER_SIZE];
+    char out_buffer [MSG_BUFFER_SIZE];
+    if (mq_send (qd_client, result, strlen (result) + 1, 0) == -1) {
+        output ("Server: Not able to send message to client");
+    }else{
+	output("wrote to queue: %s\n" , result);
+    }
+    
+    mq_close(qd_client);
+}
+
 static char *read_queue(void)
 {
     FILE *fp;
@@ -2408,11 +2451,11 @@ static void friend_connection_callback(ElaCarrier *w, const char *friendid,
     case ElaConnectionStatus_Connected:
         output("Friend[%s] connection changed to be online\n", friendid);
         rc = ela_group_invite(w, lobbyGroup, friendid);
-	if (rc < 0) { 
-		output("Invite friend[%s] into group[%s] failed.\n", friendid, lobbyGroup);
-	} else {
-		output("Invite friend[%s] into group[%s] successfully.\n", friendid, lobbyGroup);
-	}
+        if (rc < 0) { 
+            output("Invite friend[%s] into group[%s] failed.\n", friendid, lobbyGroup);
+        } else {
+            output("Invite friend[%s] into group[%s] successfully.\n", friendid, lobbyGroup);
+        }
         break;
 
     case ElaConnectionStatus_Disconnected:
