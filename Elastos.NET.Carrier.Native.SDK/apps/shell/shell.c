@@ -40,6 +40,7 @@
 
 #define SERVER_QUEUE_NAME   "/carrier_node_server_queue"
 #define CLIENT_QUEUE_NAME   "/carrier_node_client_queue"
+#define RPC_CLIENT_QUEUE_NAME "/carrier_rpc_client_queue"
 #define QUEUE_PERMISSIONS 0660
 #define MAX_MESSAGES 10
 #define MAX_MSG_SIZE 256
@@ -117,7 +118,7 @@ static mqd_t qd_client;
 static FILE *fp;
 static const char *lobbyGroup = "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR";
 static char friends_list_result[MSG_BUFFER_SIZE];
-static void write_queue(char *result);  //prototype
+static void write_queue(char *result, char *queue);  //prototype
 
 
 WINDOW *output_win_border, *output_win;
@@ -525,7 +526,7 @@ static void get_address(ElaCarrier *w, int argc, char *argv[])
 
     char addr[ELA_MAX_ADDRESS_LEN+1] = {0};
     ela_get_address(w, addr, sizeof(addr));
-    write_queue(addr);
+    write_queue(addr, RPC_CLIENT_QUEUE_NAME);
     output("Address: %s\n", addr);
 }
 
@@ -795,7 +796,7 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
-	write_queue(friends_list_result);
+	write_queue(friends_list_result, CLIENT_QUEUE_NAME);
 
     }
 
@@ -2231,7 +2232,7 @@ static void write_log(char *cmd)
    return;
 }
 
-static void write_queue(char *result)
+static void write_queue(char *result, char *queue)
 {
     //  Start posix code
 
@@ -2244,7 +2245,7 @@ static void write_queue(char *result)
     attr.mq_msgsize = MAX_MSG_SIZE;
     attr.mq_curmsgs = 0;
 
-    if ((qd_client = mq_open (CLIENT_QUEUE_NAME, O_WRONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
+    if ((qd_client = mq_open (queue, O_WRONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
         perror ("Server: mq_open (client)");
         exit (1);
     }
