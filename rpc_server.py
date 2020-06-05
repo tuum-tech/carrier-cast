@@ -23,7 +23,6 @@ def send_command(s):
 	q = posixmq.Queue('/carrier_node_server_queue',serializer=RawSerializer)
 	q.put(s.encode('ascii'))
 	q_return = posixmq.Queue('/carrier_rpc_client_queue',serializer=RawSerializer)
-	print("return %s" % q_return)
 	output = ""+str(q_return.get().decode('ascii'))
 	return output
 	#return("command sent")
