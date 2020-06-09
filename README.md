@@ -7,26 +7,12 @@ Carrier Cast provides an RPC server that accepts and executes all elashell comma
 
 ## Build 
 ```
-docker build -t tuum-tech/carrier_node .
+docker build -t tuum-tech/carrier-cast .
 ```
 
 ## Run
-- Stop previously opened docker containers
 ```
-docker container stop carrier-node || true && docker container rm -f carrier-node || true
-```
-- Run the container 
-```
-docker run -it --name carrier-node -p 5000:5000 tuum-tech/carrier_node:latest
-# nohup /Elastos.NET.Carrier.Native.SDK/build/linux/apps/shell/elashell &
-```
-- Open a second terminal and run the rpc server
-```
-docker container exec -it carrier-node python3 /rpc_server.py
-```
-- Open a third terminal and run the queue reader
-```
-docker container exec -it carrier-node python3 /client_queue_reader.py
+./run.sh
 ```
 
 ## Sample RPC
