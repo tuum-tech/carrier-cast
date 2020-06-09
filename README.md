@@ -5,11 +5,6 @@ Carrier Cast is a program that runs on a linux system and creates an ElastOS car
 Carrier Cast provides an RPC server that accepts and executes all elashell commands.  
 
 
-## Build 
-```
-docker build -t tuum-tech/carrier-cast .
-```
-
 ## Run
 ```
 ./run.sh
@@ -18,4 +13,10 @@ docker build -t tuum-tech/carrier-cast .
 ## Sample RPC
 ```
 curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["friends"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000
+```
+
+## Build(Only if you modify any files)
+```
+docker build -t tuumtech/carrier-cast .
+docker push tuumtech/carrier-cast
 ```
