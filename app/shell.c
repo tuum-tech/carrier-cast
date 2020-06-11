@@ -119,7 +119,7 @@ static FILE *fp;
 static const char *lobbyGroup = "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR";
 static char friends_list_result[MSG_BUFFER_SIZE];
 static void write_queue(char *result, char *queue);  //prototype
-
+static void write_log(char *cmd);  //protptype
 
 WINDOW *output_win_border, *output_win;
 WINDOW *log_win_border, *log_win;
@@ -551,6 +551,7 @@ static void get_userid(ElaCarrier *w, int argc, char *argv[])
 
     char id[ELA_MAX_ID_LEN+1] = {0};
     ela_get_userid(w, id, sizeof(id));
+    write_queue(id, RPC_CLIENT_QUEUE_NAME);
     output("User ID: %s\n", id);
 }
 
@@ -777,7 +778,8 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
     if (first_friends_item) {
         count = 0;
 	memset(friends_list_result,0,MSG_BUFFER_SIZE);
-        output("Friends list:\n");
+        strcat(friends_list_result, "friends:");
+	output("Friends list:\n");
         output("  %-46s %8s %s\n", "ID", "Connection", "Label");
         output("  %-46s %8s %s\n", "----------------", "----------", "-----");
     }
@@ -786,7 +788,7 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("  %-46s %8s %s\n", friend_info->user_info.userid,
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
-        sprintf(this_friend, "%s\n", friend_info->user_info.userid);
+        sprintf(this_friend, "%s:", friend_info->user_info.userid);
         strcat(friends_list_result, this_friend);
 
 	count++;
@@ -796,7 +798,7 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
-	write_queue(friends_list_result, CLIENT_QUEUE_NAME);
+	//write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
 
     }
 
@@ -2191,6 +2193,7 @@ static void do_cmd(ElaCarrier *w, char *line)
     char *p;
     int word = 0;
 
+    write_log("in do_cmd\n");
     for (p = line; *p != 0; p++) {
         if (isspace(*p)) {
             *p = 0;
@@ -2211,7 +2214,8 @@ static void do_cmd(ElaCarrier *w, char *line)
         for (p = commands; p->cmd; p++) {
             if (strcmp(args[0], p->cmd) == 0) {
                 p->function(w, count, args);
-                return;
+                output("executed function %s", args[0]);
+		return;
             }
         }
 
@@ -2249,8 +2253,8 @@ static void write_queue(char *result, char *queue)
         perror ("Server: mq_open (client)");
         exit (1);
     }
-    char in_buffer [MSG_BUFFER_SIZE];
-    char out_buffer [MSG_BUFFER_SIZE];
+    //char in_buffer [MSG_BUFFER_SIZE];
+    //char out_buffer [MSG_BUFFER_SIZE];
     if (mq_send (qd_client, result, strlen (result) + 1, 0) == -1) {
         output ("Server: Not able to send message to client");
     }else{
@@ -2269,7 +2273,7 @@ static char *read_queue(void)
     //mqd_t qd_server, qd_client;   // queue descriptors
     long token_number = 1; // next token to be given to client
 
-    // output ("Server: Hello, World!\n");
+    //output ("Server: Hello, World!\n");
 
     struct mq_attr attr;
 
@@ -2282,7 +2286,8 @@ static char *read_queue(void)
         perror ("Server: mq_open (server)");
         exit (1);
     }
-    char in_buffer [MSG_BUFFER_SIZE];
+    
+    char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
     char out_buffer [MSG_BUFFER_SIZE];
     int size_t;
 
@@ -2295,13 +2300,13 @@ static char *read_queue(void)
         //perror ("Server: mq_receive");
         //exit (1);
 	if (!fp){
-		return;
+		return NULL;
 	}
 	fp = fopen("carrier_cmds.log", "a");
-	fprintf(fp, "date/time: %s  command: %s\n",asctime(localtime(&ltime)),in_buffer);
+	fprintf(fp, "date/time: %s  readq command: %s\n",asctime(localtime(&ltime)),in_buffer);
 	fclose(fp);
         output("sizeof buffer is %d\n", size_t);
-        output("Got input from queue %s\n", in_buffer);
+        output("Got  input from queue %s\n", in_buffer);
         return in_buffer;
     }
 
@@ -2413,11 +2418,15 @@ static void idle_callback(ElaCarrier *w, void *context)
         do_cmd(w, cmd);
    }
 
-   cmd = read_queue();
-   if(cmd){
-	//write_log(cmd);
-	do_cmd(w, cmd);
+   char *cmd_q = read_queue();
+   char note[33];
+   //sprintf(note,"command is %s\n",cmd_q); //if (strlen(cmd) > 5 ) { exit(-1);}
+   
+   if(cmd_q){
+	do_cmd(w, cmd_q);
+	
    }
+   //write_log(note);
 }
 
 static void connection_callback(ElaCarrier *w, ElaConnectionStatus status,
