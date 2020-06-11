@@ -20,3 +20,8 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 docker build -t tuumtech/carrier-cast .
 docker push tuumtech/carrier-cast
 ```
+
+## Log into the container
+```
+docker container exec -it carrier-cast bash
+```
