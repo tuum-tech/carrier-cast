@@ -551,6 +551,7 @@ static void get_userid(ElaCarrier *w, int argc, char *argv[])
 
     char id[ELA_MAX_ID_LEN+1] = {0};
     ela_get_userid(w, id, sizeof(id));
+    write_queue(id, RPC_CLIENT_QUEUE_NAME);
     output("User ID: %s\n", id);
 }
 
