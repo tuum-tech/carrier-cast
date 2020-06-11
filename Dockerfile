@@ -29,8 +29,6 @@ RUN cd ${SRC_DIR}/Elastos.NET.Carrier.Native.SDK \
 		make && \
 		make install
 
-RUN mv ${SRC_DIR}/Elastos.NET.Carrier.Native.SDK/build/linux/apps/shell/elashell ${SRC_DIR}/elashell
-
 RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d
 
 COPY rpc_helper/* ${SRC_DIR}/

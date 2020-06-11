@@ -734,7 +734,6 @@ static const char *connection_name[] = {
     "offline"
 };
 
-
 /* This callback share by list_friends and global
  * friend list callback */
 static bool friends_list_callback(ElaCarrier *w, const ElaFriendInfo *friend_info,
@@ -753,9 +752,7 @@ static bool friends_list_callback(ElaCarrier *w, const ElaFriendInfo *friend_inf
         output("  %-46s %8s %s\n", friend_info->user_info.userid,
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
-
         //strcpy(friend_list_result, this_friend);
-	
         count++;
     } else {
         /* The list ended */
@@ -777,9 +774,9 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
 
     if (first_friends_item) {
         count = 0;
-	memset(friends_list_result,0,MSG_BUFFER_SIZE);
+        memset(friends_list_result,0,MSG_BUFFER_SIZE);
         strcat(friends_list_result, "friends:");
-	output("Friends list:\n");
+        output("Friends list:\n");
         output("  %-46s %8s %s\n", "ID", "Connection", "Label");
         output("  %-46s %8s %s\n", "----------------", "----------", "-----");
     }
@@ -790,16 +787,14 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         first_friends_item = 0;
         sprintf(this_friend, "%s:", friend_info->user_info.userid);
         strcat(friends_list_result, this_friend);
-
-	count++;
+        count++;
     } else {
         /* The list ended */
         output("  ----------------\n");
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
-	//write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
-
+        //write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
     }
 
     return true;
@@ -944,6 +939,76 @@ static void send_bulk_message(ElaCarrier *w, int argc, char *argv[])
     output("  totoal: %d\n", total_count);
     output(" success: %d\n", total_count - failed_count);
     output("  failed: %d\n", failed_count);
+}
+
+static void receipt_message_callback(int64_t msgid,  ElaReceiptState state,
+                                     void *context)
+{
+    const char* state_str;
+    int errcode = 0;
+
+    switch (state) {
+        case ElaReceipt_ByFriend:
+            state_str = "Friend receipt";
+            break;
+        case ElaReceipt_Offline:
+            state_str = "Offline";
+            break;
+        case ElaReceipt_Error:
+            state_str = "Error";
+            errcode = ela_get_error();
+            break;
+        default:
+            state_str = "Unknown";
+            break;
+    }
+
+    output("Messages receipted. msgid:0x%llx, state:%s, ecode:%x\n",
+           msgid, state_str, errcode);
+}
+
+static void send_receipt_message(ElaCarrier *w, int argc, char *argv[])
+{
+    int64_t msgid;
+
+    if (argc != 3) {
+        output("Invalid command syntax.\n");
+        return;
+    }
+
+    msgid = ela_send_message_with_receipt(w, argv[1], argv[2], strlen(argv[2]) + 1,
+                                          receipt_message_callback, NULL);
+    if (msgid >= 0)
+        output("Sending receipt message. msgid:0x%llx\n", msgid);
+    else
+        output("Send message failed(0x%x).\n", ela_get_error());
+}
+
+static void send_receipt_bulkmessage(ElaCarrier *w, int argc, char *argv[])
+{
+    int rc;
+    int datalen = 2048;
+    char *data;
+    int idx;
+
+    if (argc != 2) {
+        output("Invalid command syntax.\n");
+        return;
+    }
+
+    data = (char*)calloc(1, datalen);
+    for(idx = 0; idx < datalen; idx++) {
+        data[idx] = '0' + (idx % 8);
+    }
+    memcpy(data + datalen - 5, "end", 4);
+
+    int64_t msgid = ela_send_message_with_receipt(w, argv[1], data, strlen(data) + 1,
+                                                  receipt_message_callback, NULL);
+    free(data);
+    if (msgid >= 0)
+        output("Sending receipt message. msgid:0x%llx\n", msgid);
+    else
+        output("Send message failed(0x%x).\n", ela_get_error());
 }
 
 static void bigmsg_benchmark_initialize(ElaCarrier *w, int argc, char *argv[])
@@ -2108,6 +2173,8 @@ struct command {
     { "label",      label_friend,           "label [User ID] [Name] - Add label to friend." },
     { "msg",        send_message,           "msg [User ID] [Message] - Send message to a friend." },
     { "bulkmsg",    send_bulk_message,      "bulkmsg [User ID] [Count] [Message] - Send numerous messages to a friend." },
+    { "ackmsg",     send_receipt_message,   "ackmsg [User ID] [Count] [Message] - Send messages with receipt to a friend." },
+    { "ackbmsg",    send_receipt_bulkmessage,   "ackbmsg [User ID] [Count] [Message] - Send messages with receipt to a friend." },
     { "bigmsgbenchmarkinit", bigmsg_benchmark_initialize, "bigmsgbenchmarkinit [User ID] [Count] - Initialize a big message benchmark to send [count]MB big message to a friend." },
     { "bigmsgbenchmarkacpt", bigmsg_benchmark_accept, "bigmsgbenchmarkacpt - Accept a big message benchmark initialized by a friend." },
     { "bigmsgbenchmarkrej",  bigmsg_benchmark_reject, "bigmsgbenchmarkrej - Reject a big message benchmark initialized by a friend." },
@@ -2215,102 +2282,12 @@ static void do_cmd(ElaCarrier *w, char *line)
             if (strcmp(args[0], p->cmd) == 0) {
                 p->function(w, count, args);
                 output("executed function %s", args[0]);
-		return;
+                return;
             }
         }
 
         output("Unknown command: %s\n", args[0]);
     }
-}
-
-static void write_log(char *cmd)
-{
-   FILE *fp;
-   
-   fp = fopen("carrier_cmds.log", "a");
-   if (!fp){
-     return;
-   }
-   fprintf(fp, "command: %s\n",cmd);
-   fclose(fp);
-   return;
-}
-
-static void write_queue(char *result, char *queue)
-{
-    //  Start posix code
-
-    // output ("Server: Hello, World!\n");
-
-    struct mq_attr attr;
-
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = MAX_MESSAGES;
-    attr.mq_msgsize = MAX_MSG_SIZE;
-    attr.mq_curmsgs = 0;
-
-    if ((qd_client = mq_open (queue, O_WRONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
-        perror ("Server: mq_open (client)");
-        exit (1);
-    }
-    //char in_buffer [MSG_BUFFER_SIZE];
-    //char out_buffer [MSG_BUFFER_SIZE];
-    if (mq_send (qd_client, result, strlen (result) + 1, 0) == -1) {
-        output ("Server: Not able to send message to client");
-    }else{
-	output("wrote to queue: %s\n" , result);
-    }
-    
-    mq_close(qd_client);
-}
-
-static char *read_queue(void)
-{
-    FILE *fp;
-    time_t ltime;
-    ltime=time(NULL);
-    //  Start posix code
-    //mqd_t qd_server, qd_client;   // queue descriptors
-    long token_number = 1; // next token to be given to client
-
-    //output ("Server: Hello, World!\n");
-
-    struct mq_attr attr;
-
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = MAX_MESSAGES;
-    attr.mq_msgsize = MAX_MSG_SIZE;
-    attr.mq_curmsgs = 0;
-
-    if ((qd_server = mq_open (SERVER_QUEUE_NAME, O_RDONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
-        perror ("Server: mq_open (server)");
-        exit (1);
-    }
-    
-    char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
-    char out_buffer [MSG_BUFFER_SIZE];
-    int size_t;
-
-    memset(in_buffer,0,MSG_BUFFER_SIZE);
-    // output("after mq_open");
-    // get the oldest message with highest priority
-    size_t = mq_receive (qd_server, in_buffer, MSG_BUFFER_SIZE, NULL);
-    mq_close(qd_server);
-    if (size_t != -1) {
-        //perror ("Server: mq_receive");
-        //exit (1);
-	if (!fp){
-		return NULL;
-	}
-	fp = fopen("carrier_cmds.log", "a");
-	fprintf(fp, "date/time: %s  readq command: %s\n",asctime(localtime(&ltime)),in_buffer);
-	fclose(fp);
-        output("sizeof buffer is %d\n", size_t);
-        output("Got  input from queue %s\n", in_buffer);
-        return in_buffer;
-    }
-
-    return NULL;
 }
 
 static char *read_cmd(void)
@@ -2410,23 +2387,110 @@ static char *read_cmd(void)
     return NULL;
 }
 
+static void write_log(char *cmd)
+{
+   FILE *fp;
+   
+   fp = fopen("carrier_cmds.log", "a");
+   if (!fp){
+     return;
+   }
+   fprintf(fp, "command: %s\n",cmd);
+   fclose(fp);
+   return;
+}
+
+static void write_queue(char *result, char *queue)
+{
+    //  Start posix code
+
+    // output ("Server: Hello, World!\n");
+
+    struct mq_attr attr;
+
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = MAX_MESSAGES;
+    attr.mq_msgsize = MAX_MSG_SIZE;
+    attr.mq_curmsgs = 0;
+
+    if ((qd_client = mq_open (queue, O_WRONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
+        perror ("Server: mq_open (client)");
+        exit (1);
+    }
+    //char in_buffer [MSG_BUFFER_SIZE];
+    //char out_buffer [MSG_BUFFER_SIZE];
+    if (mq_send (qd_client, result, strlen (result) + 1, 0) == -1) {
+        output ("Server: Not able to send message to client");
+    }else{
+	output("wrote to queue: %s\n" , result);
+    }
+    
+    mq_close(qd_client);
+}
+
+static char *read_queue(void)
+{
+    FILE *fp;
+    time_t ltime;
+    ltime=time(NULL);
+    //  Start posix code
+    //mqd_t qd_server, qd_client;   // queue descriptors
+    long token_number = 1; // next token to be given to client
+
+    //output ("Server: Hello, World!\n");
+
+    struct mq_attr attr;
+
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = MAX_MESSAGES;
+    attr.mq_msgsize = MAX_MSG_SIZE;
+    attr.mq_curmsgs = 0;
+
+    if ((qd_server = mq_open (SERVER_QUEUE_NAME, O_RDONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
+        perror ("Server: mq_open (server)");
+        exit (1);
+    }
+    
+    char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    char out_buffer [MSG_BUFFER_SIZE];
+    int size_t;
+
+    memset(in_buffer,0,MSG_BUFFER_SIZE);
+    // output("after mq_open");
+    // get the oldest message with highest priority
+    size_t = mq_receive (qd_server, in_buffer, MSG_BUFFER_SIZE, NULL);
+    mq_close(qd_server);
+    if (size_t != -1) {
+        //perror ("Server: mq_receive");
+        //exit (1);
+	if (!fp){
+		return NULL;
+	}
+	fp = fopen("carrier_cmds.log", "a");
+	fprintf(fp, "date/time: %s  readq command: %s\n",asctime(localtime(&ltime)),in_buffer);
+	fclose(fp);
+        output("sizeof buffer is %d\n", size_t);
+        output("Got  input from queue %s\n", in_buffer);
+        return in_buffer;
+    }
+
+    return NULL;
+}
+
 static void idle_callback(ElaCarrier *w, void *context)
 {
     char *cmd = read_cmd();
 
-    if (cmd){
+    if (cmd)
         do_cmd(w, cmd);
-   }
 
-   char *cmd_q = read_queue();
-   char note[33];
-   //sprintf(note,"command is %s\n",cmd_q); //if (strlen(cmd) > 5 ) { exit(-1);}
+    char *cmd_q = read_queue();
+    char note[33];
+    //sprintf(note,"command is %s\n",cmd_q); //if (strlen(cmd) > 5 ) { exit(-1);}
    
-   if(cmd_q){
-	do_cmd(w, cmd_q);
-	
-   }
-   //write_log(note);
+    if(cmd_q)
+        do_cmd(w, cmd_q);       
+    //write_log(note);
 }
 
 static void connection_callback(ElaCarrier *w, ElaConnectionStatus status,
@@ -2509,7 +2573,9 @@ static void friend_request_callback(ElaCarrier *w, const char *userid,
 }
 
 static void message_callback(ElaCarrier *w, const char *from,
-                             const void *msg, size_t len, bool is_offline, void *context)
+                             const void *msg, size_t len,
+                             int64_t timestamp, bool is_offline,
+                             void *context)
 {
     char ctlsig_type[128];
     size_t totalsz;
@@ -2518,7 +2584,7 @@ static void message_callback(ElaCarrier *w, const char *from,
     rc = sscanf(msg, "bigmsgbenchmark %128s %zu", ctlsig_type, &totalsz);
     if (rc < 1) {
         if (bigmsg_benchmark.state != ONGOING || strcmp(from, bigmsg_benchmark.peer)) {
-            output("Message(%s) from friend[%s]: %.*s\n", is_offline ? "offline" : "online", from, (int)len, (const char *)msg);
+            output("Message(%s) from friend[%s] at %lld: (%d)%.*s\n", is_offline ? "offline" : "online", from, timestamp, (int)len, (int)len, (const char *)msg);
             return;
         }
 
@@ -2707,7 +2773,6 @@ int main(int argc, char *argv[])
 
     int opt;
     int idx;
-    
     struct option options[] = {
         { "config",         required_argument,  NULL, 'c' },
         { "udp-enabled",    required_argument,  NULL, 1 },
@@ -2817,7 +2882,7 @@ int main(int argc, char *argv[])
     }
 
     output("Carrier node identities:\n");
-    output("   Node's ID: %s\n", ela_get_nodeid(w, buf, sizeof(buf)));
+    output("   Node ID: %s\n", ela_get_nodeid(w, buf, sizeof(buf)));
     output("   User ID: %s\n", ela_get_userid(w, buf, sizeof(buf)));
     output("   Address: %s\n\n", ela_get_address(w, buf, sizeof(buf)));
     output("\n");
@@ -2835,8 +2900,8 @@ int main(int argc, char *argv[])
 
     rc = ela_run(w, 10);
     while(1){
-       //just keep going
-	output("here\n");
+        //just keep going
+        output("here\n");
     }
     if (rc != 0) {
         output("Error start carrier loop: 0x%x\n", ela_get_error());
@@ -2846,8 +2911,6 @@ int main(int argc, char *argv[])
         ela_kill(w);
         goto quit;
     }
-    
-    
 
 quit:
     cleanup_screen();
