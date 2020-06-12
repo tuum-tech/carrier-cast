@@ -11,8 +11,13 @@ Carrier Cast provides an RPC server that accepts and executes all elashell comma
 ```
 
 ## Sample RPC
+- Get address
 ```
-curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["address"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["address"],"jsonrpc": "2.0","id": 0}'  http://157.245.248.119:5000
+```
+- Get user ID
+```
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["userid"],"jsonrpc": "2.0","id": 0}'  http://157.245.248.119:5000
 ```
 
 ## Build(Only if you modify any files)
