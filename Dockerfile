@@ -34,6 +34,8 @@ RUN mkdir -p /var/log/supervisor /etc/supervisor/conf.d
 COPY rpc_helper/* ${SRC_DIR}/
 COPY supervisor.conf /etc/supervisor.conf     
 
+ENV TERM linux
+
 # define the port number the container should expose
 EXPOSE 5000
 
