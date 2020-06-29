@@ -120,6 +120,9 @@ static const char *lobbyGroup = "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR";
 static char friends_list_result[MSG_BUFFER_SIZE];
 static void write_queue(char *result, char *queue);  //prototype
 static void write_log(char *cmd);  //protptype
+static char *reuse_out_buffer;
+static bool multipass_queue_data = false;
+
 
 WINDOW *output_win_border, *output_win;
 WINDOW *log_win_border, *log_win;
@@ -777,9 +780,9 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
 
     if (first_friends_item) {
         count = 0;
-	memset(friends_list_result,0,MSG_BUFFER_SIZE);
+	    memset(friends_list_result,0,MSG_BUFFER_SIZE);
         strcat(friends_list_result, "friends:");
-	output("Friends list:\n");
+	    output("Friends list:\n");
         output("  %-46s %8s %s\n", "ID", "Connection", "Label");
         output("  %-46s %8s %s\n", "----------------", "----------", "-----");
     }
@@ -798,7 +801,7 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
-	//write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
+	    write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
 
     }
 
@@ -1399,6 +1402,7 @@ static void group_new(ElaCarrier *w, int argc, char *argv[])
     if (rc < 0) {
         output("Create group failed.\n");
     } else {
+        write_queue(groupid, RPC_CLIENT_QUEUE_NAME);
         output("Create group[%s] successfully.\n", groupid);
     }
 }
@@ -1513,11 +1517,19 @@ static void group_set_title(ElaCarrier *w, int argc, char *argv[])
 static bool print_group_peer_info(const ElaGroupPeer *peer, void *context)
 {
     int *peer_number = (int *)context;
+    char this_peer[50] = {0};
+
+    if(*peer_number==0){
+        multipass_queue_data = true;
+        memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+    }
 
     if (!peer) {
         return false;
     }
 
+    sprintf(this_peer, "%s:", peer->userid);
+    strcat(reuse_out_buffer, this_peer);
     output("%d. %s[%s]\n", (*peer_number)++, peer->name, peer->userid);
     return true;
 }
@@ -1543,11 +1555,19 @@ static void group_list_peers(ElaCarrier *w, int argc, char *argv[])
 static bool print_group_id(const char *groupid, void *context)
 {
     int *group_number = (int *)context;
+    char this_group[50] = {0};
 
+    if(*group_number==0){
+        multipass_queue_data = true;
+        memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+    }
+    
     if (!groupid) {
         return false;
     }
 
+    sprintf(this_group, "%s:", groupid);
+    strcat(reuse_out_buffer, this_group);
     output("%d. %s\n", (*group_number)++, groupid);
     return true;
 }
@@ -2214,8 +2234,13 @@ static void do_cmd(ElaCarrier *w, char *line)
         for (p = commands; p->cmd; p++) {
             if (strcmp(args[0], p->cmd) == 0) {
                 p->function(w, count, args);
-                output("executed function %s", args[0]);
-		return;
+                output("executed function %s\n", args[0]);
+                if(multipass_queue_data){
+                    write_queue(reuse_out_buffer, RPC_CLIENT_QUEUE_NAME);
+                    memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+                    multipass_queue_data = false;
+                }
+		        return;
             }
         }
 
@@ -2707,6 +2732,7 @@ int main(int argc, char *argv[])
 
     int opt;
     int idx;
+    reuse_out_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
     
     struct option options[] = {
         { "config",         required_argument,  NULL, 'c' },
