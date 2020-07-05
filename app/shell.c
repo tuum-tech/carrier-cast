@@ -121,6 +121,8 @@ static char friends_list_result[MSG_BUFFER_SIZE];
 static void write_queue(char *result, char *queue);  //prototype
 static void write_log(char *cmd);  //protptype
 static char *reuse_out_buffer;
+static char *in_buffer;
+
 static bool multipass_queue_data = false;
 
 WINDOW *output_win_border, *output_win;
@@ -2481,8 +2483,8 @@ static char *read_queue(void)
         exit (1);
     }
     
-    char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
-    char out_buffer [MSG_BUFFER_SIZE];
+    //char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    
     int size_t;
 
     memset(in_buffer,0,MSG_BUFFER_SIZE);
@@ -2805,6 +2807,7 @@ int main(int argc, char *argv[])
     int opt;
     int idx;
     reuse_out_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    in_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
     
     struct option options[] = {
         { "config",         required_argument,  NULL, 'c' },
@@ -2948,5 +2951,7 @@ int main(int argc, char *argv[])
 quit:
     cleanup_screen();
     history_save();
+    free(reuse_out_buffer);
+    free(in_buffer);
     return 0;
 }
