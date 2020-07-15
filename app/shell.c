@@ -120,6 +120,10 @@ static const char *lobbyGroup = "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR";
 static char friends_list_result[MSG_BUFFER_SIZE];
 static void write_queue(char *result, char *queue);  //prototype
 static void write_log(char *cmd);  //protptype
+static char *reuse_out_buffer;
+static char *in_buffer;
+
+static bool multipass_queue_data = false;
 
 WINDOW *output_win_border, *output_win;
 WINDOW *log_win_border, *log_win;
@@ -714,6 +718,7 @@ static void friend_accept(ElaCarrier *w, int argc, char *argv[])
 static void friend_remove(ElaCarrier *w, int argc, char *argv[])
 {
     int rc;
+    char friendremoveresponse[ELA_MAX_ID_LEN + 20];
 
     if (argc != 2) {
         output("Invalid command syntax.\n");
@@ -721,10 +726,16 @@ static void friend_remove(ElaCarrier *w, int argc, char *argv[])
     }
 
     rc = ela_remove_friend(w, argv[1]);
-    if (rc == 0)
+    if (rc == 0){
         output("Remove friend %s success.\n", argv[1]);
-    else
+        strcpy(friendremoveresponse, "success");
+        write_queue(friendremoveresponse, RPC_CLIENT_QUEUE_NAME);
+    }else{
         output("Remove friend %s failed (0x%x).\n", argv[1], ela_get_error());
+        strcpy(friendremoveresponse, "error");
+        write_queue(friendremoveresponse, RPC_CLIENT_QUEUE_NAME);
+        
+    }
 }
 
 static int first_friends_item = 1;
@@ -770,13 +781,13 @@ static bool friends_list_callback(ElaCarrier *w, const ElaFriendInfo *friend_inf
 static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context)
 {
     static int count;
-    char this_friend[50] = {0};
+    char this_friend[100] = {0};
 
     if (first_friends_item) {
         count = 0;
-        memset(friends_list_result,0,MSG_BUFFER_SIZE);
-        strcat(friends_list_result, "friends:");
-        output("Friends list:\n");
+	    memset(friends_list_result,0,MSG_BUFFER_SIZE);
+        strcat(friends_list_result, "friends:[");
+	    output("Friends list:\n");
         output("  %-46s %8s %s\n", "ID", "Connection", "Label");
         output("  %-46s %8s %s\n", "----------------", "----------", "-----");
     }
@@ -785,16 +796,18 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("  %-46s %8s %s\n", friend_info->user_info.userid,
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
-        sprintf(this_friend, "%s:", friend_info->user_info.userid);
+        sprintf(this_friend, "{ id:%s, status:%s }, ", friend_info->user_info.userid,connection_name[friend_info->status]);
         strcat(friends_list_result, this_friend);
-        count++;
+	    count++;
     } else {
         /* The list ended */
         output("  ----------------\n");
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
-        //write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
+        strcat(friends_list_result, "]");
+	    write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
+
     }
 
     return true;
@@ -939,6 +952,75 @@ static void send_bulk_message(ElaCarrier *w, int argc, char *argv[])
     output("  totoal: %d\n", total_count);
     output(" success: %d\n", total_count - failed_count);
     output("  failed: %d\n", failed_count);
+}
+static void receipt_message_callback(int64_t msgid,  ElaReceiptState state,
+                                     void *context)
+{
+    const char* state_str;
+    int errcode = 0;
+
+    switch (state) {
+        case ElaReceipt_ByFriend:
+            state_str = "Friend receipt";
+            break;
+        case ElaReceipt_Offline:
+            state_str = "Offline";
+            break;
+        case ElaReceipt_Error:
+            state_str = "Error";
+            errcode = ela_get_error();
+            break;
+        default:
+            state_str = "Unknown";
+            break;
+    }
+
+    output("Messages receipted. msgid:0x%llx, state:%s, ecode:%x\n",
+           msgid, state_str, errcode);
+}
+
+static void send_receipt_message(ElaCarrier *w, int argc, char *argv[])
+{
+    int64_t msgid;
+
+    if (argc != 3) {
+        output("Invalid command syntax.\n");
+        return;
+    }
+
+    msgid = ela_send_message_with_receipt(w, argv[1], argv[2], strlen(argv[2]) + 1,
+                                          receipt_message_callback, NULL);
+    if (msgid >= 0)
+        output("Sending receipt message. msgid:0x%llx\n", msgid);
+    else
+        output("Send message failed(0x%x).\n", ela_get_error());
+}
+
+static void send_receipt_bulkmessage(ElaCarrier *w, int argc, char *argv[])
+{
+    int rc;
+    int datalen = 2048;
+    char *data;
+    int idx;
+
+    if (argc != 2) {
+        output("Invalid command syntax.\n");
+        return;
+    }
+
+    data = (char*)calloc(1, datalen);
+    for(idx = 0; idx < datalen; idx++) {
+        data[idx] = '0' + (idx % 8);
+    }
+    memcpy(data + datalen - 5, "end", 4);
+
+    int64_t msgid = ela_send_message_with_receipt(w, argv[1], data, strlen(data) + 1,
+                                                  receipt_message_callback, NULL);
+    free(data);
+    if (msgid >= 0)
+        output("Sending receipt message. msgid:0x%llx\n", msgid);
+    else
+        output("Send message failed(0x%x).\n", ela_get_error());
 }
 
 static void receipt_message_callback(int64_t msgid,  ElaReceiptState state,
@@ -1454,6 +1536,7 @@ static void group_new(ElaCarrier *w, int argc, char *argv[])
 {
     int rc;
     char groupid[ELA_MAX_ID_LEN + 1];
+    char groupresponse[ELA_MAX_ID_LEN + 20];
 
     if (argc != 1) {
         output("Invalid command syntax.\n");
@@ -1464,6 +1547,9 @@ static void group_new(ElaCarrier *w, int argc, char *argv[])
     if (rc < 0) {
         output("Create group failed.\n");
     } else {
+        //strcat(reuse_out_buffer, "groups:[");
+        sprintf(groupresponse, "group:%s,", groupid);
+        write_queue(groupresponse, RPC_CLIENT_QUEUE_NAME);
         output("Create group[%s] successfully.\n", groupid);
     }
 }
@@ -1488,6 +1574,7 @@ static void group_leave(ElaCarrier *w, int argc, char **argv)
 static void group_invite(ElaCarrier *w, int argc, char *argv[])
 {
     int rc;
+    char groupinviteresponse[ELA_MAX_ID_LEN + 20];
 
     if (argc != 3) {
         output("Invalid command syntax.\n");
@@ -1497,8 +1584,12 @@ static void group_invite(ElaCarrier *w, int argc, char *argv[])
     rc = ela_group_invite(w, argv[1], argv[2]);
     if (rc < 0) {
         output("Invite friend[%s] into group[%s] failed.\n", argv[2], argv[1]);
+        strcpy(groupinviteresponse, "error");
+        write_queue(groupinviteresponse, RPC_CLIENT_QUEUE_NAME);
     } else {
         output("Invite friend[%s] into group[%s] successfully.\n", argv[2], argv[1]);
+        strcpy(groupinviteresponse, "success");
+        write_queue(groupinviteresponse, RPC_CLIENT_QUEUE_NAME);
     }
 }
 
@@ -1578,11 +1669,20 @@ static void group_set_title(ElaCarrier *w, int argc, char *argv[])
 static bool print_group_peer_info(const ElaGroupPeer *peer, void *context)
 {
     int *peer_number = (int *)context;
+    char this_peer[50] = {0};
+
+    if(*peer_number==0){
+        multipass_queue_data = true;
+        memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+        strcat(reuse_out_buffer, "peers:[");
+    }
 
     if (!peer) {
         return false;
     }
 
+    sprintf(this_peer, "%s,", peer->userid);
+    strcat(reuse_out_buffer, this_peer);
     output("%d. %s[%s]\n", (*peer_number)++, peer->name, peer->userid);
     return true;
 }
@@ -1608,11 +1708,20 @@ static void group_list_peers(ElaCarrier *w, int argc, char *argv[])
 static bool print_group_id(const char *groupid, void *context)
 {
     int *group_number = (int *)context;
+    char this_group[50] = {0};
 
+    if(*group_number==0){
+        multipass_queue_data = true;
+        memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+        strcat(reuse_out_buffer, "groups:[");
+    }
+    
     if (!groupid) {
         return false;
     }
 
+    sprintf(this_group, "%s,", groupid);
+    strcat(reuse_out_buffer, this_group);
     output("%d. %s\n", (*group_number)++, groupid);
     return true;
 }
@@ -2281,8 +2390,14 @@ static void do_cmd(ElaCarrier *w, char *line)
         for (p = commands; p->cmd; p++) {
             if (strcmp(args[0], p->cmd) == 0) {
                 p->function(w, count, args);
-                output("executed function %s", args[0]);
-                return;
+                output("executed function %s\n", args[0]);
+                if(multipass_queue_data){
+                    strcat(reuse_out_buffer, "]");
+                    write_queue(reuse_out_buffer, RPC_CLIENT_QUEUE_NAME);
+                    memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+                    multipass_queue_data = false;
+                }
+		        return;
             }
         }
 
@@ -2386,7 +2501,6 @@ static char *read_cmd(void)
 
     return NULL;
 }
-
 static void write_log(char *cmd)
 {
    FILE *fp;
@@ -2451,8 +2565,8 @@ static char *read_queue(void)
         exit (1);
     }
     
-    char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
-    char out_buffer [MSG_BUFFER_SIZE];
+    //char *in_buffer = malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    
     int size_t;
 
     memset(in_buffer,0,MSG_BUFFER_SIZE);
@@ -2476,7 +2590,6 @@ static char *read_queue(void)
 
     return NULL;
 }
-
 static void idle_callback(ElaCarrier *w, void *context)
 {
     char *cmd = read_cmd();
@@ -2488,9 +2601,10 @@ static void idle_callback(ElaCarrier *w, void *context)
     char note[33];
     //sprintf(note,"command is %s\n",cmd_q); //if (strlen(cmd) > 5 ) { exit(-1);}
    
-    if(cmd_q)
-        do_cmd(w, cmd_q);       
-    //write_log(note);
+   if(cmd_q){
+        do_cmd(w, cmd_q);
+   }
+   //write_log(note);
 }
 
 static void connection_callback(ElaCarrier *w, ElaConnectionStatus status,
@@ -2773,6 +2887,9 @@ int main(int argc, char *argv[])
 
     int opt;
     int idx;
+    reuse_out_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    in_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    
     struct option options[] = {
         { "config",         required_argument,  NULL, 'c' },
         { "udp-enabled",    required_argument,  NULL, 1 },
@@ -2911,9 +3028,11 @@ int main(int argc, char *argv[])
         ela_kill(w);
         goto quit;
     }
-
+    
 quit:
     cleanup_screen();
     history_save();
+    free(reuse_out_buffer);
+    free(in_buffer);
     return 0;
 }
