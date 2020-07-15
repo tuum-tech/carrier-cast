@@ -20,3 +20,14 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 docker build -t tuumtech/carrier-cast .
 docker push tuumtech/carrier-cast
 ```
+
+## Sample curl calls
+```
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["friends"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000/  
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["gnew"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000/  
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["glist"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000/ 
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["gpeers B9E9HJKpAXs9w5Sa9CaMCqKXDpnq2X836no7af7QYyZQ"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000/
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["fremove 9PPuqkVrXx9TQH5pGsh1mwgMTTjwDaw7SehpUbLNH8VJ"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000/
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["ginvite B9E9HJKpAXs9w5Sa9CaMCqKXDpnq2X836no7af7QYyZQ 9PPuqkVrXx9TQH5pGsh1mwgMTTjwDaw7SehpUbLNH8VJ"],"jsonrpc": "2.0","id": 0}'  http://127.0.0.1:5000/
+
+```
