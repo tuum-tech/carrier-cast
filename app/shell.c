@@ -718,6 +718,7 @@ static void friend_accept(ElaCarrier *w, int argc, char *argv[])
 static void friend_remove(ElaCarrier *w, int argc, char *argv[])
 {
     int rc;
+    char friendremoveresponse[ELA_MAX_ID_LEN + 20];
 
     if (argc != 2) {
         output("Invalid command syntax.\n");
@@ -725,10 +726,16 @@ static void friend_remove(ElaCarrier *w, int argc, char *argv[])
     }
 
     rc = ela_remove_friend(w, argv[1]);
-    if (rc == 0)
+    if (rc == 0){
         output("Remove friend %s success.\n", argv[1]);
-    else
+        strcpy(friendremoveresponse, "success");
+        write_queue(friendremoveresponse, RPC_CLIENT_QUEUE_NAME);
+    }else{
         output("Remove friend %s failed (0x%x).\n", argv[1], ela_get_error());
+        strcpy(friendremoveresponse, "error");
+        write_queue(friendremoveresponse, RPC_CLIENT_QUEUE_NAME);
+        
+    }
 }
 
 static int first_friends_item = 1;
@@ -1470,7 +1477,7 @@ static void group_new(ElaCarrier *w, int argc, char *argv[])
     if (rc < 0) {
         output("Create group failed.\n");
     } else {
-        strcat(reuse_out_buffer, "groups:[");
+        //strcat(reuse_out_buffer, "groups:[");
         sprintf(groupresponse, "group:%s,", groupid);
         write_queue(groupresponse, RPC_CLIENT_QUEUE_NAME);
         output("Create group[%s] successfully.\n", groupid);
@@ -1497,6 +1504,7 @@ static void group_leave(ElaCarrier *w, int argc, char **argv)
 static void group_invite(ElaCarrier *w, int argc, char *argv[])
 {
     int rc;
+    char groupinviteresponse[ELA_MAX_ID_LEN + 20];
 
     if (argc != 3) {
         output("Invalid command syntax.\n");
@@ -1506,8 +1514,12 @@ static void group_invite(ElaCarrier *w, int argc, char *argv[])
     rc = ela_group_invite(w, argv[1], argv[2]);
     if (rc < 0) {
         output("Invite friend[%s] into group[%s] failed.\n", argv[2], argv[1]);
+        strcpy(groupinviteresponse, "error");
+        write_queue(groupinviteresponse, RPC_CLIENT_QUEUE_NAME);
     } else {
         output("Invite friend[%s] into group[%s] successfully.\n", argv[2], argv[1]);
+        strcpy(groupinviteresponse, "success");
+        write_queue(groupinviteresponse, RPC_CLIENT_QUEUE_NAME);
     }
 }
 
