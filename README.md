@@ -18,9 +18,14 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 should print something like
 ```
 {
+  "jsonrpc": "2.0",
   "id": 0,
-  "result": "friends:[{ id:EmTQgTBFKMNgmNeXg9KpWLmgdpbuk8XfKzp24E9skj8d, status:online }, ]\u0000",
-  "jsonrpc": "2.0"
+  "result": [
+    {
+      "id": "EmTQgTBFKMNgmNeXg9KpWLmgdpbuk8XfKzp24E9skj8d",
+      "status": "offline"
+    }
+  ]
 }
 ```
 - Get userid of self
@@ -30,9 +35,9 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 should print something like
 ```
 {
+  "jsonrpc": "2.0",
   "id": 0,
-  "result": "7nkEktqycBWWhQipvbrGXaUKxY3Yz4WwgjAjZpoRNKru\u000",
-  "jsonrpc": "2.0"
+  "result": "FJyFoFiRkoBiSzcvWAruEKCrF9EfxPKX41zTEAddy1vt"
 }
 - Get address of self
 ```
@@ -41,9 +46,9 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 should print something like
 ```
 {
+  "jsonrpc": "2.0",
   "id": 0,
-  "result": "YTDzwrNXQrouMxzJfPnR7DYefpSnXScXKhRpSVt62NzmABAw4Szi\u000",
-  "jsonrpc": "2.0"
+  "result": "YTDzwrNXQrouMxzJfPnR7DYefpSnXScXKhRpSVt62NzmABAw4Szi"
 }
 ```
 - Create a new group
@@ -53,9 +58,9 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 should print something like
 ```
 {
+  "jsonrpc": "2.0",
   "id": 0,
-  "result": "group:2i2kyu27AkhZ1YUt1anPRVLro18R7hUQGVJKfmUAu1S2,\u0000",
-  "jsonrpc": "2.0"
+  "result": "Hsk7Rhhyzmz766aAwwCqgA5xQYHoiebSWou7o24yFV3A"
 }
 ```
 - Retrieve all the groups 
@@ -65,21 +70,32 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 should print something like
 ```
 {
+  "jsonrpc": "2.0",
   "id": 0,
-  "result": "groups:[2i2kyu27AkhZ1YUt1anPRVLro18R7hUQGVJKfmUAu1S2,2yrbATvSvnBrNVoDzvrBot464ivuQ5CCQS2mfq5NxQYt,]\u0000",
-  "jsonrpc": "2.0"
+  "result": [
+    "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR",
+    "D1cfvWT39TciMfvRMzCcPkejsULyyn39q7EsYPDpDGN7",
+    "Hsk7Rhhyzmz766aAwwCqgA5xQYHoiebSWou7o24yFV3A"
+  ]
 }
 ```
 - Retrieve all the users in a particular group
 ```
-curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["gpeers 2i2kyu27AkhZ1YUt1anPRVLro18R7hUQGVJKfmUAu1S2"],"jsonrpc": "2.0","id": 0}' http://localhost:5000
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["gpeers fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR"],"jsonrpc": "2.0","id": 0}' http://localhost:5000
 ```
 should print something like
 ```
 {
+  "jsonrpc": "2.0",
   "id": 0,
-  "result": "peers:[7nkEktqycBWWhQipvbrGXaUKxY3Yz4WwgjAjZpoRNKru,]\u0000",
-  "jsonrpc": "2.0"
+  "result": [
+    "FJyFoFiRkoBiSzcvWAruEKCrF9EfxPKX41zTEAddy1vt",
+    "EmTQgTBFKMNgmNeXg9KpWLmgdpbuk8XfKzp24E9skj8d",
+    "6DtMUa6SQDZdWWE78u2LEZkeDqaBRZSCtESudVQakukg",
+    "A9RMhbuxjA35foiR9jN4rhyeN211e5wBZDKoGiisQHPV",
+    "AQAq1XqJKCSBh8MwXZ2dHRtbV5v1YJpE11xALpSHErew",
+    "2zACoN7hBD6Maybgez8JikfttEG3Z7ebFyFgHQAsjk1Z"
+  ]
 }
 ```
 - Remove someone from friends list
@@ -88,15 +104,23 @@ curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"
 ```
 should print something like
 ```
-
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": "success"
+}
 ```
 - Invite someone to a specific group
 ```
-curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["ginvite 2i2kyu27AkhZ1YUt1anPRVLro18R7hUQGVJKfmUAu1S2 EmTQgTBFKMNgmNeXg9KpWLmgdpbuk8XfKzp24E9skj8d"],"jsonrpc": "2.0","id": 0}' http://localhost:5000
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["ginvite FJyFoFiRkoBiSzcvWAruEKCrF9EfxPKX41zTEAddy1vt EmTQgTBFKMNgmNeXg9KpWLmgdpbuk8XfKzp24E9skj8d"],"jsonrpc": "2.0","id": 0}' http://localhost:5000
 ```
 should print something like
 ```
-
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": "success"
+}
 ```
 
 ## Build(Only if you modify any files)

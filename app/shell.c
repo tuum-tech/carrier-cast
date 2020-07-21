@@ -806,7 +806,11 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
         
-        sprintf(this_friend, "{ 'id':'%s', 'status':'%s' }, ", friend_info->user_info.userid,connection_name[friend_info->status]);
+        if(count == 0) {
+            sprintf(this_friend, "{ \"id\":\"%s\", \"status\":\"%s\" }", friend_info->user_info.userid,connection_name[friend_info->status]);
+        } else {
+            sprintf(this_friend, ", { \"id\":\"%s\", \"status\":\"%s\" }", friend_info->user_info.userid,connection_name[friend_info->status]);
+        }
         //strcat(friends_list_result, this_friend);
         write_queue(this_friend, RPC_CLIENT_QUEUE_NAME);
        
@@ -1631,9 +1635,10 @@ static bool print_group_peer_info(const ElaGroupPeer *peer, void *context)
     }
     if(!multipass_first_time){
         //strcat(reuse_out_buffer, ",");
-        write_queue(",", RPC_CLIENT_QUEUE_NAME);
+        sprintf(this_peer, ", \"%s\"", peer->userid);
+    } else {
+        sprintf(this_peer, "\"%s\"", peer->userid);
     }
-    sprintf(this_peer, "'%s'", peer->userid);
     write_queue(this_peer, RPC_CLIENT_QUEUE_NAME);
     //strcat(reuse_out_buffer, this_peer);
     multipass_first_time = false;
@@ -1679,9 +1684,10 @@ static bool print_group_id(const char *groupid, void *context)
     }
 
     if(!multipass_first_time){
-        write_queue(",", RPC_CLIENT_QUEUE_NAME);
+        sprintf(this_group, ", \"%s\"", groupid);
+    } else {
+        sprintf(this_group, "\"%s\"", groupid);
     }
-    sprintf(this_group, "'%s'", groupid);
     write_queue(this_group, RPC_CLIENT_QUEUE_NAME);
     multipass_first_time = false;
     output("%d. %s\n", (*group_number)++, groupid);

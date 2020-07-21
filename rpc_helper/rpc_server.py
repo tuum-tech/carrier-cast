@@ -24,7 +24,7 @@ rpc_server = RPCServerGreenlets(transport, JSONRPCProtocol(), dispatcher)
 @dispatcher.public
 def send_command(command):
 	print("rpc_server: Executing command: {0}".format(command))
-	longstring = "" 
+	result_string = "" 
 	q = posixmq.Queue('/carrier_node_server_queue',serializer=RawSerializer)
 	q.put(command.encode('ascii'))
 	print("rpc_server: Sent command '{0}' to queue 'carrier_node_server_queue'".format(command))
@@ -32,11 +32,15 @@ def send_command(command):
 	while(1):
 		output = ""+str(q_return.get().decode('ascii'))
 		if output!="EOS":
-			longstring+=output
+			result_string += output
 		else:
 			break
-	print("rpc_server: Got response from command: {0}, Response: {1}".format(command, longstring))
-	return longstring
+	print("rpc_server: Got response from command: {0}, Response: {1}".format(command, result_string))
+	try:
+		result = json.loads(result_string)
+	except:
+		result = result_string
+	return result
 
 
 
