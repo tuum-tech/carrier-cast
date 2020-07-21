@@ -34,7 +34,7 @@ def send_command(command):
 			longstring+=output
 		else:
 			break
-	print("rpc_server: Got response from command: {0}".format(command))
+	print("rpc_server: Got response from command: {0}, Response: {1}".format(command, longstring))
 	return longstring
 
 
