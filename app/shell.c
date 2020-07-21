@@ -533,6 +533,7 @@ static void get_address(ElaCarrier *w, int argc, char *argv[])
     char addr[ELA_MAX_ADDRESS_LEN+1] = {0};
     ela_get_address(w, addr, sizeof(addr));
     write_queue(addr, RPC_CLIENT_QUEUE_NAME);
+    write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     output("Address: %s\n", addr);
 }
 
@@ -558,6 +559,7 @@ static void get_userid(ElaCarrier *w, int argc, char *argv[])
     char id[ELA_MAX_ID_LEN+1] = {0};
     ela_get_userid(w, id, sizeof(id));
     write_queue(id, RPC_CLIENT_QUEUE_NAME);
+    write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     output("User ID: %s\n", id);
 }
 
