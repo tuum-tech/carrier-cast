@@ -17,14 +17,16 @@ transport = WsgiServerTransport(queue_class=gevent.queue.Queue)
 wsgi_server = gevent.pywsgi.WSGIServer(('0.0.0.0', 5000), transport.handle)
 gevent.spawn(wsgi_server.serve_forever)
 
+print("rpc_server: Initializing RPC server")
 rpc_server = RPCServerGreenlets(transport, JSONRPCProtocol(), dispatcher)
 #rpc_server = JSONRPCProtocol()
 
 @dispatcher.public
-def send_command(s):
+def send_command(command):
+	print("rpc_server: Executing command: {0}".format(command))
 	longstring = "" 
 	q = posixmq.Queue('/carrier_node_server_queue',serializer=RawSerializer)
-	q.put(s.encode('ascii'))
+	q.put(command.encode('ascii'))
 	q_return = posixmq.Queue('/carrier_rpc_client_queue',serializer=RawSerializer)
 	while(1):
 		output = ""+str(q_return.get().decode('ascii'))

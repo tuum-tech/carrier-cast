@@ -34,7 +34,17 @@ should print something like
   "result": "7nkEktqycBWWhQipvbrGXaUKxY3Yz4WwgjAjZpoRNKru\u000",
   "jsonrpc": "2.0"
 }
-
+- Get address of self
+```
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["address"],"jsonrpc": "2.0","id": 0}' http://localhost:5000
+```
+should print something like
+```
+{
+  "id": 0,
+  "result": "YTDzwrNXQrouMxzJfPnR7DYefpSnXScXKhRpSVt62NzmABAw4Szi\u000",
+  "jsonrpc": "2.0"
+}
 ```
 - Create a new group
 ```
