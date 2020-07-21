@@ -105,6 +105,7 @@ static const char *default_config_files[] = {
 
 #define NUMBER_OF_HISTORY       256
 
+//static char testLongFriendList[10250];
 static char default_data_location[PATH_MAX];
 
 static const char *history_filename = ".elashell.history";
@@ -120,10 +121,11 @@ static const char *lobbyGroup = "fLChMuc7rS2kGqrrxFVwvfzJWz9EyjLdKJLvCCQHBaR";
 static char friends_list_result[MSG_BUFFER_SIZE];
 static void write_queue(char *result, char *queue);  //prototype
 static void write_log(char *cmd);  //protptype
-static char *reuse_out_buffer;
+//static char *reuse_out_buffer;
 static char *in_buffer;
 
 static bool multipass_queue_data = false;
+static bool multipass_first_time = false;
 
 WINDOW *output_win_border, *output_win;
 WINDOW *log_win_border, *log_win;
@@ -730,10 +732,13 @@ static void friend_remove(ElaCarrier *w, int argc, char *argv[])
         output("Remove friend %s success.\n", argv[1]);
         strcpy(friendremoveresponse, "success");
         write_queue(friendremoveresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
+        
     }else{
         output("Remove friend %s failed (0x%x).\n", argv[1], ela_get_error());
-        strcpy(friendremoveresponse, "error");
+        strcpy(friendremoveresponse, "fail");
         write_queue(friendremoveresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
         
     }
 }
@@ -782,11 +787,13 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
 {
     static int count;
     char this_friend[100] = {0};
+    int i;
 
     if (first_friends_item) {
         count = 0;
-	    memset(friends_list_result,0,MSG_BUFFER_SIZE);
-        strcat(friends_list_result, "friends:[");
+	    //memset(friends_list_result,0,MSG_BUFFER_SIZE);
+        //strcat(friends_list_result, "[");
+        write_queue("[", RPC_CLIENT_QUEUE_NAME);
 	    output("Friends list:\n");
         output("  %-46s %8s %s\n", "ID", "Connection", "Label");
         output("  %-46s %8s %s\n", "----------------", "----------", "-----");
@@ -796,8 +803,11 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("  %-46s %8s %s\n", friend_info->user_info.userid,
                connection_name[friend_info->status], friend_info->label);
         first_friends_item = 0;
-        sprintf(this_friend, "{ id:%s, status:%s }, ", friend_info->user_info.userid,connection_name[friend_info->status]);
-        strcat(friends_list_result, this_friend);
+        
+        sprintf(this_friend, "{ 'id':'%s', 'status':'%s' }, ", friend_info->user_info.userid,connection_name[friend_info->status]);
+        //strcat(friends_list_result, this_friend);
+        write_queue(this_friend, RPC_CLIENT_QUEUE_NAME);
+       
 	    count++;
     } else {
         /* The list ended */
@@ -805,8 +815,9 @@ static bool get_friends_callback(const ElaFriendInfo *friend_info, void *context
         output("Total %d friends.\n", count);
 
         first_friends_item = 1;
-        strcat(friends_list_result, "]");
-	    write_queue(friends_list_result, RPC_CLIENT_QUEUE_NAME);
+        //strcat(friends_list_result, "]");
+	    write_queue("]", RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
 
     }
 
@@ -1479,8 +1490,9 @@ static void group_new(ElaCarrier *w, int argc, char *argv[])
         output("Create group failed.\n");
     } else {
         //strcat(reuse_out_buffer, "groups:[");
-        sprintf(groupresponse, "group:%s,", groupid);
+        sprintf(groupresponse, "%s", groupid);
         write_queue(groupresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
         output("Create group[%s] successfully.\n", groupid);
     }
 }
@@ -1515,12 +1527,14 @@ static void group_invite(ElaCarrier *w, int argc, char *argv[])
     rc = ela_group_invite(w, argv[1], argv[2]);
     if (rc < 0) {
         output("Invite friend[%s] into group[%s] failed.\n", argv[2], argv[1]);
-        strcpy(groupinviteresponse, "error");
+        strcpy(groupinviteresponse, "failed");
         write_queue(groupinviteresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     } else {
         output("Invite friend[%s] into group[%s] successfully.\n", argv[2], argv[1]);
         strcpy(groupinviteresponse, "success");
         write_queue(groupinviteresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     }
 }
 
@@ -1604,16 +1618,23 @@ static bool print_group_peer_info(const ElaGroupPeer *peer, void *context)
 
     if(*peer_number==0){
         multipass_queue_data = true;
-        memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
-        strcat(reuse_out_buffer, "peers:[");
+        multipass_first_time = true;
+        //memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+        //strcat(reuse_out_buffer, "[");
+        write_queue("[", RPC_CLIENT_QUEUE_NAME);
     }
 
     if (!peer) {
         return false;
     }
-
-    sprintf(this_peer, "%s,", peer->userid);
-    strcat(reuse_out_buffer, this_peer);
+    if(!multipass_first_time){
+        //strcat(reuse_out_buffer, ",");
+        write_queue(",", RPC_CLIENT_QUEUE_NAME);
+    }
+    sprintf(this_peer, "'%s'", peer->userid);
+    write_queue(this_peer, RPC_CLIENT_QUEUE_NAME);
+    //strcat(reuse_out_buffer, this_peer);
+    multipass_first_time = false;
     output("%d. %s[%s]\n", (*peer_number)++, peer->name, peer->userid);
     return true;
 }
@@ -1622,6 +1643,7 @@ static void group_list_peers(ElaCarrier *w, int argc, char *argv[])
 {
     int peer_number = 0;
     int rc;
+    char groupresponse[ELA_MAX_ID_LEN + 20];
 
     if (argc != 2) {
         output("Invalid command syntax.\n");
@@ -1633,6 +1655,9 @@ static void group_list_peers(ElaCarrier *w, int argc, char *argv[])
                              (void *)&peer_number);
     if (rc < 0) {
         output("List group peers failed.\n");
+        strcpy(groupresponse, "failed");
+        write_queue(groupresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     }
 }
 
@@ -1643,16 +1668,20 @@ static bool print_group_id(const char *groupid, void *context)
 
     if(*group_number==0){
         multipass_queue_data = true;
-        memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
-        strcat(reuse_out_buffer, "groups:[");
+        multipass_first_time = true;
+        write_queue("[", RPC_CLIENT_QUEUE_NAME);
     }
     
     if (!groupid) {
         return false;
     }
 
-    sprintf(this_group, "%s,", groupid);
-    strcat(reuse_out_buffer, this_group);
+    if(!multipass_first_time){
+        write_queue(",", RPC_CLIENT_QUEUE_NAME);
+    }
+    sprintf(this_group, "'%s'", groupid);
+    write_queue(this_group, RPC_CLIENT_QUEUE_NAME);
+    multipass_first_time = false;
     output("%d. %s\n", (*group_number)++, groupid);
     return true;
 }
@@ -2323,9 +2352,11 @@ static void do_cmd(ElaCarrier *w, char *line)
                 p->function(w, count, args);
                 output("executed function %s\n", args[0]);
                 if(multipass_queue_data){
-                    strcat(reuse_out_buffer, "]");
-                    write_queue(reuse_out_buffer, RPC_CLIENT_QUEUE_NAME);
-                    memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
+                    //strcat(reuse_out_buffer, "]");
+                    //write_queue(reuse_out_buffer, RPC_CLIENT_QUEUE_NAME);
+                    write_queue("]", RPC_CLIENT_QUEUE_NAME);
+                    write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
+                    //memset(reuse_out_buffer,0,MSG_BUFFER_SIZE);
                     multipass_queue_data = false;
                 }
 		        return;
@@ -2464,10 +2495,10 @@ static void write_queue(char *result, char *queue)
     }
     //char in_buffer [MSG_BUFFER_SIZE];
     //char out_buffer [MSG_BUFFER_SIZE];
-    if (mq_send (qd_client, result, strlen (result) + 1, 0) == -1) {
+    if (mq_send (qd_client, result, strlen (result), 0) == -1) {
         output ("Server: Not able to send message to client");
     }else{
-	output("wrote to queue: %s\n" , result);
+	    output("wrote to queue: %s\n" , result);
     }
     
     mq_close(qd_client);
@@ -2819,7 +2850,7 @@ int main(int argc, char *argv[])
 
     int opt;
     int idx;
-    reuse_out_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    //reuse_out_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
     in_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
     
     struct option options[] = {
@@ -2836,6 +2867,7 @@ int main(int argc, char *argv[])
 #ifdef HAVE_SYS_RESOURCE_H
     sys_coredump_set(true);
 #endif
+
 
     memset(&opts, 0, sizeof(opts));
 
@@ -2936,16 +2968,29 @@ int main(int argc, char *argv[])
     output("   Address: %s\n\n", ela_get_address(w, buf, sizeof(buf)));
     output("\n");
 
-    /*//Posix setup
-    attr.mq_flags = 0;
-    attr.mq_maxmsg = MAX_MESSAGES;
-    attr.mq_msgsize = MAX_MSG_SIZE;
-    attr.mq_curmsgs = 0;
-    if ((qd_server = mq_open (SERVER_QUEUE_NAME, O_RDONLY | O_CREAT | O_NONBLOCK, QUEUE_PERMISSIONS, &attr)) == -1) {
-        perror ("Server: mq_open (server)");
-        exit (1);
+// this is only for testing
+/*    FILE *fp;
+    char testLongFriendList[200];
+    char* filename = "/carrier-cast/testlongstring.txt";
+ 
+    fp = fopen(filename, "r");
+    if (fp == NULL){
+        output("Could not open file %s",filename);
+        return 1;
     }
-    output("Server Queue is open");*/
+    while (1){
+        if(fgets(testLongFriendList, 200, fp) == NULL){
+            write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
+            output("%s", "EOS");
+            break;
+        }else{
+            output("%s", testLongFriendList);
+            write_queue(testLongFriendList, RPC_CLIENT_QUEUE_NAME);
+        }
+    }
+    fclose(fp);
+*/
+// this is only for testing
 
     rc = ela_run(w, 10);
     while(1){
@@ -2964,7 +3009,7 @@ int main(int argc, char *argv[])
 quit:
     cleanup_screen();
     history_save();
-    free(reuse_out_buffer);
+    //free(reuse_out_buffer);
     free(in_buffer);
     return 0;
 }
