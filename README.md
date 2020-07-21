@@ -39,6 +39,7 @@ should print something like
   "id": 0,
   "result": "FJyFoFiRkoBiSzcvWAruEKCrF9EfxPKX41zTEAddy1vt"
 }
+```
 - Get address of self
 ```
 curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["address"],"jsonrpc": "2.0","id": 0}' http://localhost:5000
