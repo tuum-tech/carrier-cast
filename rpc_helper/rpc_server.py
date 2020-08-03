@@ -2,6 +2,8 @@ import gevent
 import gevent.pywsgi
 import gevent.queue
 import json
+import random
+import string
 from tinyrpc.protocols.jsonrpc import JSONRPCProtocol
 from tinyrpc.transports.wsgi import WsgiServerTransport
 from tinyrpc.server.gevent import RPCServerGreenlets
@@ -25,16 +27,23 @@ rpc_server = RPCServerGreenlets(transport, JSONRPCProtocol(), dispatcher)
 def send_command(command):
 	print("rpc_server: Executing command: {0}".format(command))
 	result_string = "" 
+
+	#generate a random 5 character token to send to server and 
+	#use it from response to tie response to request
+	letters = string.ascii_lowercase
+	cmd_token = ''.join(random.choice(letters) for i in range(5))
 	q = posixmq.Queue('/carrier_node_server_queue',serializer=RawSerializer)
-	q.put(command.encode('ascii'))
+	q.put(cmd_token.encode('ascii')+command.encode('ascii'))
 	print("rpc_server: Sent command '{0}' to queue 'carrier_node_server_queue'".format(command))
 	q_return = posixmq.Queue('/carrier_rpc_client_queue',serializer=RawSerializer)
 	while(1):
-		output = ""+str(q_return.get().decode('ascii'))
-		if output!="EOS":
-			result_string += output
-		else:
-			break
+		output = ""+str(q_return.get(timeout=15).decode('ascii'))
+		#print("output: "+output)
+		if output[0:5]==cmd_token:
+			if output[5:]!="EOS":
+				result_string += output[5:]
+			else:
+				break
 	print("rpc_server: Got response from command: {0}, Response: {1}".format(command, result_string))
 	try:
 		result = json.loads(result_string)
