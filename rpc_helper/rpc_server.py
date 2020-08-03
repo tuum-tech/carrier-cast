@@ -39,7 +39,7 @@ def send_command(command):
 	logging.info("rpc_server: Sent command '{0}' to queue 'carrier_node_server_queue'".format(command))
 	q_return = posixmq.Queue('/carrier_rpc_client_queue',serializer=RawSerializer)
 	while(1):
-		output = ""+str(q_return.get(timeout=15).decode('ascii'))
+		output = ""+str(q_return.get(timeout=5).decode('ascii'))
 		#print("output: "+output)
 		if output[0:5]==cmd_token:
 			if output[5:]!="EOS":
