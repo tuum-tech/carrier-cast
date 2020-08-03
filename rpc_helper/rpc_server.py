@@ -4,6 +4,7 @@ import gevent.queue
 import json
 import random
 import string
+import logging
 from tinyrpc.protocols.jsonrpc import JSONRPCProtocol
 from tinyrpc.transports.wsgi import WsgiServerTransport
 from tinyrpc.server.gevent import RPCServerGreenlets
@@ -27,7 +28,7 @@ rpc_server = RPCServerGreenlets(transport, JSONRPCProtocol(), dispatcher)
 def send_command(command):
 	print("rpc_server: Executing command: {0}".format(command))
 	result_string = "" 
-
+	logging.basicConfig(filename='rpc_server.log',level=logging.DEBUG,format='%(asctime)s %(message)s',datefmt='%m/%d/%Y %I:%M:%S %p')
 	#generate a random 5 character token to send to server and 
 	#use it from response to tie response to request
 	letters = string.ascii_lowercase
@@ -35,6 +36,7 @@ def send_command(command):
 	q = posixmq.Queue('/carrier_node_server_queue',serializer=RawSerializer)
 	q.put(cmd_token.encode('ascii')+command.encode('ascii'))
 	print("rpc_server: Sent command '{0}' to queue 'carrier_node_server_queue'".format(command))
+	logging.info("rpc_server: Sent command '{0}' to queue 'carrier_node_server_queue'".format(command))
 	q_return = posixmq.Queue('/carrier_rpc_client_queue',serializer=RawSerializer)
 	while(1):
 		output = ""+str(q_return.get(timeout=15).decode('ascii'))
@@ -45,6 +47,7 @@ def send_command(command):
 			else:
 				break
 	print("rpc_server: Got response from command: {0}, Response: {1}".format(command, result_string))
+	logging.info("rpc_server: Got response from command: {0}, Response: {1}".format(command, result_string))
 	try:
 		result = json.loads(result_string)
 	except:

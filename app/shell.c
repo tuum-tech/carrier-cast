@@ -1549,6 +1549,7 @@ static void group_invite(ElaCarrier *w, int argc, char *argv[])
 static void group_join(ElaCarrier *w, int argc, char *argv[])
 {
     char groupid[ELA_MAX_ID_LEN + 1];
+    char groupjoinresponse[ELA_MAX_ID_LEN + 20];
     size_t cookie_len;
     uint8_t *cookie;
     size_t i;
@@ -1569,8 +1570,14 @@ static void group_join(ElaCarrier *w, int argc, char *argv[])
     rc = ela_group_join(w, argv[1], cookie, cookie_len, groupid, sizeof(groupid));
     if (rc < 0) {
         output("Join in group failed.\n");
+        strcpy(groupjoinresponse, "failed");
+        write_queue(groupjoinresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     } else {
         output("Join in group[%s] successfully.\n", groupid);
+        strcpy(groupjoinresponse, "success");
+        write_queue(groupjoinresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     }
 }
 
