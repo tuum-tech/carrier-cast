@@ -45,6 +45,7 @@
 #define MAX_MESSAGES 10
 #define MAX_MSG_SIZE 256
 #define MSG_BUFFER_SIZE MAX_MSG_SIZE + 10
+#define CMD_TOKEN_SIZE 6
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -123,6 +124,7 @@ static void write_queue(char *result, char *queue);  //prototype
 static void write_log(char *cmd);  //protptype
 //static char *reuse_out_buffer;
 static char *in_buffer;
+static char *cmd_token; 
 
 static bool multipass_queue_data = false;
 static bool multipass_first_time = false;
@@ -1547,6 +1549,7 @@ static void group_invite(ElaCarrier *w, int argc, char *argv[])
 static void group_join(ElaCarrier *w, int argc, char *argv[])
 {
     char groupid[ELA_MAX_ID_LEN + 1];
+    char groupjoinresponse[ELA_MAX_ID_LEN + 20];
     size_t cookie_len;
     uint8_t *cookie;
     size_t i;
@@ -1567,8 +1570,14 @@ static void group_join(ElaCarrier *w, int argc, char *argv[])
     rc = ela_group_join(w, argv[1], cookie, cookie_len, groupid, sizeof(groupid));
     if (rc < 0) {
         output("Join in group failed.\n");
+        strcpy(groupjoinresponse, "failed");
+        write_queue(groupjoinresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     } else {
         output("Join in group[%s] successfully.\n", groupid);
+        strcpy(groupjoinresponse, "success");
+        write_queue(groupjoinresponse, RPC_CLIENT_QUEUE_NAME);
+        write_queue("EOS", RPC_CLIENT_QUEUE_NAME);
     }
 }
 
@@ -2337,7 +2346,6 @@ static void do_cmd(ElaCarrier *w, char *line)
     char *p;
     int word = 0;
 
-    write_log("in do_cmd\n");
     for (p = line; *p != 0; p++) {
         if (isspace(*p)) {
             *p = 0;
@@ -2474,13 +2482,14 @@ static char *read_cmd(void)
 static void write_log(char *cmd)
 {
    FILE *fp;
-   
+   time_t ltime;
+   ltime=time(NULL);
    fp = fopen("carrier_cmds.log", "a");
    if (!fp){
      return;
    }
-   fprintf(fp, "command: %s\n",cmd);
-   fclose(fp);
+   fprintf(fp, "date/time: %s  : %s\n",asctime(localtime(&ltime)),cmd);
+  fclose(fp);
    return;
 }
 
@@ -2489,6 +2498,8 @@ static void write_queue(char *result, char *queue)
     //  Start posix code
 
     // output ("Server: Hello, World!\n");
+    char outstring_w_token[MAX_MSG_SIZE];
+    //char *outstring_w_token = malloc (sizeof (char) * MAX_MSG_SIZE);
 
     struct mq_attr attr;
 
@@ -2501,16 +2512,21 @@ static void write_queue(char *result, char *queue)
         perror ("Server: mq_open (client)");
         exit (1);
     }
-    //char in_buffer [MSG_BUFFER_SIZE];
-    //char out_buffer [MSG_BUFFER_SIZE];
-    if (mq_send (qd_client, result, strlen (result), 0) == -1) {
+    sprintf(outstring_w_token,"%s%s",cmd_token,result);
+    if (mq_send (qd_client, outstring_w_token, strlen (outstring_w_token), 0) == -1) {
         output ("Server: Not able to send message to client");
     }else{
-	    output("wrote to queue: %s\n" , result);
+	    output("wrote to queue: %s with token %s\n" , result,cmd_token );
+        write_log(outstring_w_token);
     }
-    
+    if (strcmp(result, "EOS") == 0){
+        // reset the command token
+        memset(cmd_token,0,CMD_TOKEN_SIZE);
+    }
     mq_close(qd_client);
+    //free(outstring_w_token);
 }
+
 
 static char *read_queue(void)
 {
@@ -2545,17 +2561,21 @@ static char *read_queue(void)
     size_t = mq_receive (qd_server, in_buffer, MSG_BUFFER_SIZE, NULL);
     mq_close(qd_server);
     if (size_t != -1) {
-        //perror ("Server: mq_receive");
-        //exit (1);
-	if (!fp){
-		return NULL;
-	}
-	fp = fopen("carrier_cmds.log", "a");
-	fprintf(fp, "date/time: %s  readq command: %s\n",asctime(localtime(&ltime)),in_buffer);
-	fclose(fp);
+        // The first 5 characters of the buffer should contain a command 
+        // token to associate a call with response
+        memcpy( cmd_token, in_buffer, 5 );
+        cmd_token[5] = '\0';
+
+        if (!fp){
+            return NULL;
+        }
+        fp = fopen("carrier_cmds.log", "a");
+        fprintf(fp, "date/time: %s  readq command: %s\n",asctime(localtime(&ltime)),in_buffer);
+        fclose(fp);
         output("sizeof buffer is %d\n", size_t);
         output("Got  input from queue %s\n", in_buffer);
-        return in_buffer;
+        //return the string ocntrained in the buffer after the 5th character
+        return &in_buffer[5];
     }
 
     return NULL;
@@ -2860,6 +2880,7 @@ int main(int argc, char *argv[])
     int idx;
     //reuse_out_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
     in_buffer = (char*)malloc (sizeof (char) * MSG_BUFFER_SIZE);
+    cmd_token = (char*)malloc (sizeof (char) * CMD_TOKEN_SIZE);
     
     struct option options[] = {
         { "config",         required_argument,  NULL, 'c' },

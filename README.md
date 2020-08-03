@@ -123,6 +123,18 @@ should print something like
   "result": "success"
 }
 ```
+- Accept invite from a friend to join a group:  gjoin(user_id_that_invited, cookie_from_invitation)
+```
+curl -H 'Content-Type: application/json' -H 'Accept:application/json' --data '{"method": "send_command","params": ["gjoin 9PPuqkVrXx9TQH5pGsh1mwgMTTjwDaw7SehpUbLNH8VJ 00000009D1C839372C0B3A11958352A60A64038628FBF3933F7D5623E1D7A563621E0A"],"jsonrpc": "2.0","id": 0}'  http://localhost:5000
+```
+should print something like
+```
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": "success"
+}
+```
 
 ## Build(Only if you modify any files)
 ```
