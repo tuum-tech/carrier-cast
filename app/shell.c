@@ -42,7 +42,7 @@
 #define CLIENT_QUEUE_NAME   "/carrier_node_client_queue"
 #define RPC_CLIENT_QUEUE_NAME "/carrier_rpc_client_queue"
 #define QUEUE_PERMISSIONS 0660
-#define MAX_MESSAGES 10
+#define MAX_MESSAGES 50
 #define MAX_MSG_SIZE 256
 #define MSG_BUFFER_SIZE MAX_MSG_SIZE + 10
 #define CMD_TOKEN_SIZE 6
